@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Modal, Button, Form } from "react-bootstrap";
 
 const RegisterModal = ({ show, onHide }) => {
-  const [name, setName] = useState("");
+  const [username, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -10,7 +10,7 @@ const RegisterModal = ({ show, onHide }) => {
     const response = await fetch("http://127.0.0.1:8000/auth/register/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password }),
+      body: JSON.stringify({ username, email, password }),
     });
 
     const data = await response.json();
@@ -33,7 +33,7 @@ const RegisterModal = ({ show, onHide }) => {
             <Form.Label className="text-dark fw-bold">Name</Form.Label>
             <Form.Control 
               type="text" 
-              value={name} 
+              value={username} 
               onChange={(e) => setName(e.target.value)} 
               className="text-dark"
             />
