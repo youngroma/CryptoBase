@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Modal, Button, Form } from "react-bootstrap";
 
 const RegisterModal = ({ show, onHide }) => {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -9,15 +10,15 @@ const RegisterModal = ({ show, onHide }) => {
     const response = await fetch("http://127.0.0.1:8000/auth/register/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ name, email, password }),
     });
 
     const data = await response.json();
     if (response.ok) {
-      alert("Регистрация успешна! Теперь войдите.");
+      alert("Registration successful! Please log in.");
       onHide();
     } else {
-      alert("Ошибка: " + JSON.stringify(data));
+      alert("Error: " + JSON.stringify(data));
     }
   };
 
@@ -29,14 +30,33 @@ const RegisterModal = ({ show, onHide }) => {
       <Modal.Body>
         <Form>
           <Form.Group>
-            <Form.Label>Email</Form.Label>
-            <Form.Control type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <Form.Label className="text-dark fw-bold">Name</Form.Label>
+            <Form.Control 
+              type="text" 
+              value={name} 
+              onChange={(e) => setName(e.target.value)} 
+              className="text-dark"
+            />
           </Form.Group>
           <Form.Group className="mt-3">
-            <Form.Label>Password</Form.Label>
-            <Form.Control type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <Form.Label className="text-dark fw-bold">Email</Form.Label>
+            <Form.Control 
+              type="email" 
+              value={email} 
+              onChange={(e) => setEmail(e.target.value)} 
+              className="text-dark"
+            />
           </Form.Group>
-          <Button variant="success" className="mt-3 w-100" onClick={handleRegister}>
+          <Form.Group className="mt-3">
+            <Form.Label className="text-dark fw-bold">Password</Form.Label>
+            <Form.Control 
+              type="password" 
+              value={password} 
+              onChange={(e) => setPassword(e.target.value)} 
+              className="text-dark"
+            />
+          </Form.Group>
+          <Button variant="success" className="mt-3 w-100 text-dark fw-bold" onClick={handleRegister}>
             Register
           </Button>
         </Form>

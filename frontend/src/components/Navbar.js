@@ -39,7 +39,7 @@ const NavBar = () => {
         </Container>
       </Navbar>
 
-      {/* Модальные окна */}
+    
       <LoginModal show={showLogin} onHide={() => setShowLogin(false)} />
       <RegisterModal show={showRegister} onHide={() => setShowRegister(false)} />
     </>
