@@ -1,0 +1,36 @@
+services:
+  backend:
+    build: ./backend
+    container_name: crypto_backend
+    restart: always
+    env_file:
+      - backend/.env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    volumes:
+      - ./backend:/app
+
+  frontend:
+    build: ./frontend
+    container_name: crypto_frontend
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+  db:
+    image: postgres:15
+    container_name: crypto_db
+    restart: always
+    env_file:
+    - backend/.env
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+volumes:
+  db_data:
