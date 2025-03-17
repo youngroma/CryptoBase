@@ -19,16 +19,30 @@ body {
   cursor: pointer;
 }
 
-.modal {
+.modal-content {
   background: #1e1e1e;
-  padding: 2rem;
-  border-radius: 10px;
   color: white;
+  border-radius: 10px;
 }
 
-.close-btn {
-  background: red;
-  color: white;
-  padding: 0.5rem;
-  margin-top: 1rem;
+
+
+.form-control {
+  background: white;
+  color: black; 
+}
+
+.form-label {
+  color: black !important; 
+  font-weight: bold;
+}
+
+.btn-success {
+  background: white;
+  color: black;
+  font-weight: bold;
+}
+
+.btn-success:hover {
+  background: #ddd;
 }
