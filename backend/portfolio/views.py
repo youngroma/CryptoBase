@@ -46,9 +46,32 @@ class CryptoDetailView(APIView):
                 "low_24h": data["market_data"].get("low_24h", {}).get("usd", "N/A"),     # And Highest price in 24h
                 "ath": data["market_data"].get("ath", {}).get("usd", "N/A"),    # The Highest price of all time
             }
+
+            chart_data = self.getChartData(slug)
+            result["chart_data"] = chart_data
+
             return Response(result)
         else:
             return Response(
                 {"error": f"Failed to fetch data for {slug} from CoinGecko"},
                 status=status.HTTP_502_BAD_GATEWAY
             )
+
+    def getChartData(self, slug, days=30):
+        url = f"https://api.coingecko.com/api/v3/coins/{slug}/market_chart"
+        params = {
+            "vs_currency": "usd",
+            "days": days,
+        }
+
+        response = requests.get(url, params=params)
+
+        if response.status_code == 200:
+            data = response.json()
+            prices = data.get("prices", [])
+            formatted_data = [{"timestamp": ts, "price": price} for ts, price in prices]
+            return formatted_data
+        else:
+            return {"error": response.json()}
+
+
