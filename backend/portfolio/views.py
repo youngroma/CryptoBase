@@ -48,7 +48,7 @@ class CryptoDetailView(APIView):
             }
 
             interval = request.query_params.get("interval", "daily")
-            chart_data = self.getChartData(slug, interval)
+            chart_data = self.getChartDataSync(slug, interval)
 
             result["chart_data"] = chart_data
 
@@ -59,7 +59,7 @@ class CryptoDetailView(APIView):
                 status=status.HTTP_502_BAD_GATEWAY
             )
 
-    def getChartData(self, slug, interval_type="daily"):
+    def getChartDataSync(self, slug, interval_type="daily"):
         interval_days_map = {
             "5min": 1,
             "hourly": 30,
