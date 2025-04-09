@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'portfolio',
     'authentication',
     'corsheaders',
+    'channels',
 ]
 
 MIDDLEWARE = [
@@ -88,6 +89,7 @@ TEMPLATES = [
     },
 ]
 
+ASGI_APPLICATION = 'CryptoBase.asgi.application'
 WSGI_APPLICATION = 'CryptoBase.wsgi.application'
 
 
