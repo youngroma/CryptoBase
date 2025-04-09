@@ -47,7 +47,9 @@ class CryptoDetailView(APIView):
                 "ath": data["market_data"].get("ath", {}).get("usd", "N/A"),    # The Highest price of all time
             }
 
-            chart_data = self.getChartData(slug)
+            interval = request.query_params.get("interval", "daily")
+            chart_data = self.getChartData(slug, interval)
+
             result["chart_data"] = chart_data
 
             return Response(result)
@@ -57,11 +59,19 @@ class CryptoDetailView(APIView):
                 status=status.HTTP_502_BAD_GATEWAY
             )
 
-    def getChartData(self, slug, days=30):
+    def getChartData(self, slug, interval_type="daily"):
+        interval_days_map = {
+            "5min": 1,
+            "hourly": 30,
+            "daily": 365
+        }
+
+        days = interval_days_map.get(interval_type, 30)
+
         url = f"https://api.coingecko.com/api/v3/coins/{slug}/market_chart"
         params = {
             "vs_currency": "usd",
-            "days": days,
+            "days": days
         }
 
         response = requests.get(url, params=params)
