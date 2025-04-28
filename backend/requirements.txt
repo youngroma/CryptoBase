@@ -16,3 +16,5 @@ requests==2.32.3
 channels==4.2.2
 daphne
 httpx
+redis==5.2.1
+channels_redis==4.2.1
