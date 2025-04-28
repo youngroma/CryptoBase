@@ -29,21 +29,25 @@ async def getChartDataAsync(slug, interval_type="daily"):
         "days": days
     }
 
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url, params=params)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, params=params)
 
-    if response.status_code == 200:
-        data = response.json()
-        prices = data.get("prices", [])
-        formatted_data = [{"timestamp": ts, "price": price} for ts, price in prices]
+        if response.status_code == 200:
+            data = response.json()
+            prices = data.get("prices", [])
+            formatted_data = [{"timestamp": ts, "price": price} for ts, price in prices]
 
-        print(f"Caching data for {cache_key}: {formatted_data}")
-        cache.set(cache_key, json.dumps(formatted_data), timeout=60 * 60)
+            print(f"Caching data for {cache_key}: {formatted_data}")
+            cache.set(cache_key, json.dumps(formatted_data), timeout=60 * 60)
 
-        logging.info("Fetched new data from API and cached it.")
-        return formatted_data
-    else:
-        return {"error": response.json()}
+            logging.info("Fetched new data from API and cached it.")
+            return formatted_data
+        else:
+            return {"error": response.json()}
+
+    except httpx.RequestError as e:
+        return {"error": f"Request failed: {str(e)}"}
 
 
 
