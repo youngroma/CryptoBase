@@ -38,8 +38,17 @@ async def getChartDataAsync(slug, interval_type="daily"):
             prices = data.get("prices", [])
             formatted_data = [{"timestamp": ts, "price": price} for ts, price in prices]
 
+            if interval_type == "5min":
+                timeout = 5 * 60  # 5 minutes for 5-minute chart
+            elif interval_type == "hourly":
+                timeout = 60 * 60  # 1 hour for the time schedule
+            elif interval_type == "daily":
+                timeout = 24 * 60 * 60  # 1 day for daily schedule
+            else:
+                timeout = 60 * 60  # Default 1 hour
+
             print(f"Caching data for {cache_key}: {formatted_data}")
-            cache.set(cache_key, json.dumps(formatted_data), timeout=60 * 60)
+            cache.set(cache_key, json.dumps(formatted_data), timeout)
 
             logging.info("Fetched new data from API and cached it.")
             return formatted_data
@@ -48,6 +57,10 @@ async def getChartDataAsync(slug, interval_type="daily"):
 
     except httpx.RequestError as e:
         return {"error": f"Request failed: {str(e)}"}
+
+    except Exception as e:
+        logging.error(f"An error occurred: {str(e)}")
+        return {"error": f"An error occurred: {str(e)}"}
 
 
 
