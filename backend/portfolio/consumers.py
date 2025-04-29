@@ -57,8 +57,16 @@ class CryptoConsumer(AsyncWebsocketConsumer):
                     "chart_data": chart_data
                 }))
 
-                # Update data every 10 seconds
-                await asyncio.sleep(10)
+                if self.interval_type == "5min":
+                    delay = 5 * 60
+                elif self.interval_type == "hourly":
+                    delay = 60 * 60
+                elif self.interval_type == "daily":
+                    delay = 24 * 60 * 60
+                else:
+                    delay = 60
+
+                await asyncio.sleep(delay)
             except Exception as e:
                 await self.send(text_data=json.dumps({"error": str(e)}))
                 break
