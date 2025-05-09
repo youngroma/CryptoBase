@@ -1,4 +1,6 @@
+import logging
 import requests
+from django.core.cache import cache
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -6,6 +8,14 @@ from rest_framework import status
 
 class CryptoListView(APIView):
     def get(self, request):
+        cache_key = "crypto_list"
+        cached_data = cache.get(cache_key)
+
+        if cached_data:
+            logging.info("Cache hit for market data")
+            return Response(cached_data)
+
+        logging.info("Cache miss for market data. Fetching from API.")
         url = "https://api.coingecko.com/api/v3/coins/markets"
         params = {
             "vs_currency": "usd",
@@ -14,19 +24,36 @@ class CryptoListView(APIView):
             "page": 1,
             "sparkline": False
         }
-        response = requests.get(url, params=params)
-        if response.status_code == 200:
-            return Response(response.json())
-        else:
+        try:
+            response = requests.get(url, params=params)
+            if response.status_code == 200:
+                data = response.json()
+                cache.set(cache_key, data, timeout=60 * 60)  # Cash for 60 minutes
+                return Response(data)
+            else:
+                return Response(
+                    {"error": "Failed to fetch data from CoinGecko"},
+                    status=status.HTTP_502_BAD_GATEWAY
+                )
+        except requests.RequestException as e:
             return Response(
-                {"error": "Failed to fetch data from CoinGecko"},
+                {"error": f"Request failed: {str(e)}"},
                 status=status.HTTP_502_BAD_GATEWAY
             )
 
 class CryptoDetailView(APIView):
     def get(self, request, slug):
+        cache_key = f"crypto_detail_{slug}"
+        cached_data = cache.get(cache_key)
+
+        if cached_data:
+            logging.info("Cache hit for market data")
+            return Response(cached_data)
+
+        logging.info("Cache miss for market data. Fetching from API.")
         url = f"https://api.coingecko.com/api/v3/coins/{slug}"
         response = requests.get(url)
+
         if response.status_code == 200:
             data = response.json()
             result = {
@@ -47,6 +74,7 @@ class CryptoDetailView(APIView):
                 "ath": data["market_data"].get("ath", {}).get("usd", "N/A"),    # The Highest price of all time
             }
 
+            cache.set(cache_key, result, timeout=60 * 60)
             return Response(result)
         else:
             return Response(
