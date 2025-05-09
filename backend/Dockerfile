@@ -10,4 +10,4 @@ COPY . .
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "python manage.py migrate && daphne -b 0.0.0.0 -p 8000 CryptoBase.asgi:application"]
+CMD ["sh", "-c", "python manage.py migrate && uvicorn CryptoBase.asgi:application --host 0.0.0.0 --port 8000 --reload"]
