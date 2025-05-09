@@ -9,6 +9,10 @@ from rest_framework import status
 class CryptoListView(APIView):
     def get(self, request):
         cache_key = "crypto_list"
+        if request.query_params.get("refresh") == "true":
+            cache.delete(cache_key)
+            cached_data = None
+
         cached_data = cache.get(cache_key)
 
         if cached_data:
@@ -28,8 +32,19 @@ class CryptoListView(APIView):
             response = requests.get(url, params=params)
             if response.status_code == 200:
                 data = response.json()
-                cache.set(cache_key, data, timeout=60 * 60)  # Cash for 60 minutes
-                return Response(data)
+                result = [
+                    {
+                        "name": coin.get("name"),
+                        "image": coin.get("image"),
+                        "symbol": coin.get("symbol"),
+                        "current_price": coin.get("current_price"),
+                        "market_cap": coin.get("market_cap"),
+                        "market_cap_rank": coin.get("market_cap_rank")
+                    }
+                    for coin in data
+                ]
+                cache.set(cache_key, result, timeout=60 * 60)  # Cash for 60 minutes
+                return Response(result)
             else:
                 return Response(
                     {"error": "Failed to fetch data from CoinGecko"},
