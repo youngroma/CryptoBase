@@ -5,6 +5,26 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 
+def get_cached_data(cache_key, url, params=None):
+    cached_data = cache.get(cache_key)
+
+    if cached_data:
+        logging.info(f"Cache hit for {cache_key}")
+        return cached_data
+
+    logging.info(f"Cache miss for {cache_key}. Fetching from API.")
+
+    try:
+        response = requests.get(url, params=params)
+        if response.status_code == 200:
+            data = response.json()
+            cache.set(cache_key, data, timeout=60 * 60)  # Cash for 60 minutes
+            return data
+        else:
+            return {"error": "Failed to fetch data from CoinGecko"}
+    except requests.RequestException as e:
+        return {"error": f"Request failed: {str(e)}"}
+
 
 class CryptoListView(APIView):
     def get(self, request):
@@ -13,13 +33,6 @@ class CryptoListView(APIView):
             cache.delete(cache_key)
             cached_data = None
 
-        cached_data = cache.get(cache_key)
-
-        if cached_data:
-            logging.info("Cache hit for market data")
-            return Response(cached_data)
-
-        logging.info("Cache miss for market data. Fetching from API.")
         url = "https://api.coingecko.com/api/v3/coins/markets"
         params = {
             "vs_currency": "usd",
@@ -28,71 +41,51 @@ class CryptoListView(APIView):
             "page": 1,
             "sparkline": False
         }
-        try:
-            response = requests.get(url, params=params)
-            if response.status_code == 200:
-                data = response.json()
-                result = [
-                    {
-                        "name": coin.get("name"),
-                        "image": coin.get("image"),
-                        "symbol": coin.get("symbol"),
-                        "current_price": coin.get("current_price"),
-                        "market_cap": coin.get("market_cap"),
-                        "market_cap_rank": coin.get("market_cap_rank")
-                    }
-                    for coin in data
-                ]
-                cache.set(cache_key, result, timeout=60 * 60)  # Cash for 60 minutes
-                return Response(result)
-            else:
-                return Response(
-                    {"error": "Failed to fetch data from CoinGecko"},
-                    status=status.HTTP_502_BAD_GATEWAY
-                )
-        except requests.RequestException as e:
-            return Response(
-                {"error": f"Request failed: {str(e)}"},
-                status=status.HTTP_502_BAD_GATEWAY
-            )
+
+        data = get_cached_data(cache_key, url, params)
+
+        if "error" in data:
+            return Response(data, status=status.HTTP_502_BAD_GATEWAY)
+
+        result = [
+            {
+                "name": coin.get("name"),
+                "image": coin.get("image"),
+                "symbol": coin.get("symbol"),
+                "current_price": coin.get("current_price"),
+                "market_cap": coin.get("market_cap"),
+                "market_cap_rank": coin.get("market_cap_rank")
+            }
+            for coin in data
+        ]
+
+        return Response(result)
 
 class CryptoDetailView(APIView):
     def get(self, request, slug):
         cache_key = f"crypto_detail_{slug}"
-        cached_data = cache.get(cache_key)
-
-        if cached_data:
-            logging.info("Cache hit for market data")
-            return Response(cached_data)
-
-        logging.info("Cache miss for market data. Fetching from API.")
         url = f"https://api.coingecko.com/api/v3/coins/{slug}"
-        response = requests.get(url)
+        data = get_cached_data(cache_key, url)
 
-        if response.status_code == 200:
-            data = response.json()
-            result = {
-                "name": data.get("name"),
-                "image": data["image"]["thumb"],
-                "symbol": data.get("symbol"),
-                "current_price": data["market_data"]["current_price"]["usd"],
-                "rank": data.get("market_cap_rank", "N/A"),  # Rating on CoinGecko
-                "price_change_percentage_24h": data["market_data"].get("price_change_percentage_24h", "N/A"),   # Change in 24 hours
-                "market_cap": data["market_data"]["market_cap"]["usd"],
-                "total_volume": data["market_data"]["total_volume"]["usd"],
-                "total_supply": data["market_data"].get("total_supply", "N/A"),  # may be none
-                "max_supply": data["market_data"].get("max_supply", "N/A"),  # may be none
-                "circulating_supply": data["market_data"].get("circulating_supply", "N/A"),  # may be none
-                "fdv": data["market_data"].get("fully_diluted_valuation", {}).get("usd", "N/A"),
-                "high_24h": data["market_data"].get("high_24h", {}).get("usd", "N/A"),  # Lowest
-                "low_24h": data["market_data"].get("low_24h", {}).get("usd", "N/A"),     # And Highest price in 24h
-                "ath": data["market_data"].get("ath", {}).get("usd", "N/A"),    # The Highest price of all time
-            }
+        if "error" in data:
+            return Response(data, status=status.HTTP_502_BAD_GATEWAY)
 
-            cache.set(cache_key, result, timeout=60 * 60)
-            return Response(result)
-        else:
-            return Response(
-                {"error": f"Failed to fetch data for {slug} from CoinGecko"},
-                status=status.HTTP_502_BAD_GATEWAY
-            )
+        result = {
+            "name": data.get("name"),
+            "image": data["image"]["thumb"],
+            "symbol": data.get("symbol"),
+            "current_price": data["market_data"]["current_price"]["usd"],
+            "rank": data.get("market_cap_rank", "N/A"),  # Rating on CoinGecko
+            "price_change_percentage_24h": data["market_data"].get("price_change_percentage_24h", "N/A"),   # Change in 24 hours
+            "market_cap": data["market_data"]["market_cap"]["usd"],
+            "total_volume": data["market_data"]["total_volume"]["usd"],
+            "total_supply": data["market_data"].get("total_supply", "N/A"),  # may be none
+            "max_supply": data["market_data"].get("max_supply", "N/A"),  # may be none
+            "circulating_supply": data["market_data"].get("circulating_supply", "N/A"),  # may be none
+            "fdv": data["market_data"].get("fully_diluted_valuation", {}).get("usd", "N/A"),
+            "high_24h": data["market_data"].get("high_24h", {}).get("usd", "N/A"),  # Lowest
+            "low_24h": data["market_data"].get("low_24h", {}).get("usd", "N/A"),  # And Highest price in 24h
+            "ath": data["market_data"].get("ath", {}).get("usd", "N/A"),  # The Highest price of all time
+        }
+
+        return Response(result)
