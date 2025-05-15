@@ -46,3 +46,33 @@ body {
 .btn-success:hover {
   background: #ddd;
 }
+
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+main {
+  flex: 1;
+}
+
+.crypto-card {
+  transition: transform 0.2s;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.crypto-card:hover {
+  transform: scale(1.05);
+  background-color: #f8f9fa;
+}
+
+.crypto-card img {
+  object-fit: contain;
+  padding: 10px;
+}
+
+footer {
+  background-color: #343a40;
+}
