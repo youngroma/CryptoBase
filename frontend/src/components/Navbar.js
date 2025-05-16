@@ -15,7 +15,7 @@ const NavBar = () => {
 
   return (
     <>
-      <Navbar expand="lg" style={{ background: "#1f252a", borderBottom: "1px solid #2c3238" }}>
+      <Navbar expand="lg" style={{ background: "#12161c", borderBottom: "1px solid #2c3238", marginBottom: 0 }}>
         <Container>
           <Navbar.Brand href="/" style={{ color: "#f0b90b", fontWeight: "bold", fontSize: "1.5rem" }}>
             CryptoBase
