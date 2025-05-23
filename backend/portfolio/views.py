@@ -2,8 +2,11 @@ import logging
 import requests
 from django.core.cache import cache
 from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
+from .models import PortfolioTransaction
+from .serializers import PortfolioTransactionSerializer
 
 def get_cached_data(cache_key, url, params=None):
     cached_data = cache.get(cache_key)
@@ -89,3 +92,14 @@ class CryptoDetailView(APIView):
         }
 
         return Response(result)
+
+
+class PortfolioTransactionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = PortfolioTransactionSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(user=request.user)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
