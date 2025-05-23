@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Container, Row, Col, Card, Spinner, Alert } from "react-bootstrap";
+import { Container, Table, Spinner, Alert, Image } from "react-bootstrap";
 import { Link } from "react-router-dom";
 
 const Home = () => {
@@ -10,11 +10,7 @@ const Home = () => {
   useEffect(() => {
     const fetchCryptos = async () => {
       try {
-        const response = await fetch("http://localhost:8000/", {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-        });
+        const response = await fetch("http://localhost:8000/");
         if (response.ok) {
           const data = await response.json();
           console.log("API Response:", data);
@@ -37,34 +33,47 @@ const Home = () => {
     fetchCryptos();
   }, []);
 
-  if (loading) return <Spinner animation="border" className="d-block mx-auto mt-5" />;
-  if (error) return <Alert variant="danger" className="mt-5">{error}</Alert>;
+  const formatNumber = (num) => (num === "N/A" || num == null || isNaN(num) ? "N/A" : num >= 1e9 ? (num / 1e9).toFixed(1) + "B" : num >= 1e6 ? (num / 1e6).toFixed(1) + "M" : num >= 1e3 ? (num / 1e3).toFixed(1) + "K" : num.toFixed(2));
+
+  if (loading) return <Spinner animation="border" style={{ color: "#f0b90b" }} className="d-block mx-auto mt-5" />;
+  if (error) return <Alert variant="danger" className="mt-5" style={{ background: "#2c3238", color: "#fff", border: "1px solid #f6465d" }}>{error}</Alert>;
 
   return (
-    <Container className="mt-5">
-      <h1 className="text-center mb-4">CryptoBase</h1>
-      <p className="text-center mb-5">Track the top 20 cryptocurrencies</p>
-      <Row xs={1} md={2} lg={4} className="g-4">
-        {Array.isArray(cryptos) &&
-          cryptos.map((crypto) =>
-            crypto.id && crypto.name && crypto.symbol && crypto.image ? (
-              <Col key={crypto.id}>
-                <Card as={Link} to={`/crypto/${crypto.id.toLowerCase()}`} className="h-100 text-decoration-none shadow-sm crypto-card">
-                  <Card.Body className="text-center">
-                    <Card.Img
-                      variant="top"
-                      src={typeof crypto.image === "string" ? crypto.image : "https://via.placeholder.com/50"}
+    <Container fluid className="mt-0 p-4" style={{ background: "#12161c", minHeight: "100vh", color: "#a9b6c2", fontFamily: "'Inter', sans-serif" }}>
+      <h1 className="text-center mb-4" style={{ color: "#f0b90b", fontSize: "2.5rem", fontWeight: "bold" }}>CryptoBase</h1>
+      <p className="text-center mb-5" style={{ color: "#a9b6c2", fontSize: "1.2rem" }}>Track the top 20 cryptocurrencies</p>
+      <Table hover responsive className="border-0" style={{ background: "#1f252a", color: "#a9b6c2", borderRadius: "12px", overflow: "hidden" }}>
+        <thead>
+          <tr style={{ background: "#2c3238", color: "#f0b90b" }}>
+            <th>#</th>
+            <th>Name</th>
+            <th>Price</th>
+            <th>Market Cap</th>
+          </tr>
+        </thead>
+        <tbody>
+          {Array.isArray(cryptos) && cryptos.map((crypto, index) => {
+            console.log(`Crypto ${crypto.name}:`, crypto);
+            return crypto.name && crypto.symbol ? (
+              <tr key={crypto.name} style={{ background: "#1f252a", transition: "all 0.3s ease" }}>
+                <td>{index + 1}</td>
+                <td>
+                  <Link to={`/crypto/${crypto.name.toLowerCase()}`} style={{ color: "#4a4a4a", textDecoration: "none", display: "flex", alignItems: "center" }}>
+                    <Image
+                      src={typeof crypto.image === "string" ? crypto.image : "https://via.placeholder.com/30"}
                       alt={`${crypto.name} icon`}
-                      style={{ width: "50px", height: "50px", margin: "auto" }}
+                      style={{ width: "30px", height: "30px", marginRight: "10px" }}
                     />
-                    <Card.Title className="mt-3">{crypto.name}</Card.Title>
-                    <Card.Text className="text-muted">{crypto.symbol.toUpperCase()}</Card.Text>
-                  </Card.Body>
-                </Card>
-              </Col>
-            ) : null
-          )}
-      </Row>
+                    <span>{crypto.name} ({crypto.symbol.toUpperCase()})</span>
+                  </Link>
+                </td>
+                <td>${formatNumber(crypto.current_price)}</td>
+                <td>${formatNumber(crypto.market_cap)}</td>
+              </tr>
+            ) : null;
+          })}
+        </tbody>
+      </Table>
     </Container>
   );
 };

@@ -3,6 +3,17 @@ import { Container, Row, Col, Spinner, Alert, Card, Button, ButtonGroup } from "
 import { useParams } from "react-router-dom";
 import Chart from "react-apexcharts";
 
+// Mock data for testing (can be removed when WebSocket works)
+const mockChartData = [
+  { timestamp: new Date().getTime() - 86400000, price: 100000 },
+  { timestamp: new Date().getTime() - 72000000, price: 101000 },
+  { timestamp: new Date().getTime() - 36000000, price: 102000 },
+  { timestamp: new Date().getTime(), price: 102267 },
+].map((item) => ({
+  x: new Date(item.timestamp),
+  y: item.price,
+}));
+
 const CryptoDetail = () => {
   const { id } = useParams();
   const [crypto, setCrypto] = useState(null);
@@ -12,14 +23,12 @@ const CryptoDetail = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Загрузка базовых данных криптовалюты с бэкенда
+  // Fetch crypto data
   useEffect(() => {
     const fetchCrypto = async () => {
       try {
         const response = await fetch(`http://localhost:8000/details/${id}/`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
+          headers: { Authorization: `Bearer ${localStorage.getItem("token") || ""}` },
         });
         if (response.ok) {
           const data = await response.json();
@@ -29,16 +38,8 @@ const CryptoDetail = () => {
           const text = await response.text();
           console.log("Server Response Text:", text);
           let errorMessage = `Не удалось загрузить данные: ${response.statusText} (Status: ${response.status})`;
-          if (text.startsWith("<!DOCTYPE html")) {
-            errorMessage = "Ошибка на сервере. Пожалуйста, попробуйте позже.";
-          } else {
-            try {
-              const errorData = JSON.parse(text);
-              errorMessage = `Не удалось загрузить данные: ${errorData.error || response.statusText}`;
-            } catch {
-              errorMessage = `Не удалось загрузить данные: ${response.statusText} (Unexpected response: ${text.slice(0, 100)}...)`;
-            }
-          }
+          if (text.startsWith("<!DOCTYPE html")) errorMessage = "Ошибка на сервере. Пожалуйста, попробуйте позже.";
+          else try { const errorData = JSON.parse(text); errorMessage = errorData.error || errorMessage; } catch {}
           setError(errorMessage);
         }
       } catch (err) {
@@ -51,249 +52,203 @@ const CryptoDetail = () => {
     fetchCrypto();
   }, [id]);
 
-  // WebSocket для получения chart_data и обновления цены
+  // WebSocket setup
   useEffect(() => {
     const ws = new WebSocket(`ws://localhost:8000/ws/crypto/${id}/`);
     ws.onopen = () => {
       console.log("WebSocket connected");
-      // Отправляем начальный интервал
       ws.send(JSON.stringify({ interval_type: interval }));
     };
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
         console.log("WebSocket data:", data);
-        // Обработка chart_data
         if (data.chart_data && Array.isArray(data.chart_data)) {
           const formattedData = data.chart_data
-            .map((item) => {
-              if (!item?.timestamp || item?.price == null) return null;
-              return {
-                x: new Date(item.timestamp),
-                y: chartType === "line" ? item.price : [item.price, item.price, item.price, item.price],
-              };
-            })
+            .map((item) => (item?.timestamp && item?.price != null ? {
+              x: new Date(item.timestamp),
+              y: chartType === "line" ? item.price : [item.price, item.price, item.price, item.price],
+            } : null))
             .filter((item) => item !== null);
           setChartData(formattedData);
         }
-        // Обработка цены
-        if (typeof data.price === "number") {
-          setCrypto((prev) => (prev ? { ...prev, current_price: data.price } : prev));
-        }
-        // Обработка ошибок
-        if (data.error) {
-          setError(`Ошибка WebSocket: ${data.error}`);
-        }
+        if (typeof data.price === "number") setCrypto((prev) => prev ? { ...prev, current_price: data.price } : prev);
+        if (data.error) setError(`Ошибка WebSocket: ${data.error}`);
       } catch (err) {
         console.error("WebSocket message error:", err);
         setError("Ошибка обработки данных WebSocket.");
       }
     };
     ws.onclose = () => console.log("WebSocket disconnected");
-    // Отправка нового интервала при изменении
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ interval_type: interval }));
-    };
+    ws.onerror = (error) => console.error("WebSocket error:", error);
     return () => ws.close();
   }, [id, interval, chartType]);
 
-  const formatNumber = (num) => {
-    if (num === null || num === undefined || isNaN(num)) return "N/A";
-    if (num >= 1e9) return (num / 1e9).toFixed(1) + "B";
-    if (num >= 1e6) return (num / 1e6).toFixed(1) + "M";
-    if (num >= 1e3) return (num / 1e3).toFixed(1) + "K";
-    return num.toFixed(2);
-  };
+  const formatNumber = (num) => (num == null || isNaN(num) ? "N/A" : num >= 1e9 ? (num / 1e9).toFixed(1) + "B" : num >= 1e6 ? (num / 1e6).toFixed(1) + "M" : num >= 1e3 ? (num / 1e3).toFixed(1) + "K" : num.toFixed(2));
 
   const lineChartOptions = {
-    chart: { type: "line", height: 400, toolbar: { show: true }, background: "#ffffff" },
-    title: {
-      text: `Price Chart (${interval === "5min" ? "5m" : interval === "hourly" ? "1h" : "1d"})`,
-      align: "left",
-      style: { fontSize: "18px", color: "#1a202c", fontWeight: "600" },
-    },
-    xaxis: {
-      type: "datetime",
-      labels: { style: { colors: "#4a5568", fontSize: "12px" } },
-    },
-    yaxis: {
-      labels: {
-        formatter: (value) => `$${formatNumber(value)}`,
-        style: { colors: "#4a5568", fontSize: "12px" },
-      },
-    },
-    stroke: { curve: "smooth", width: 2, colors: ["#3182ce"] },
-    grid: { borderColor: "#e2e8f0" },
-    fill: {
-      type: "gradient",
-      gradient: { shade: "light", gradientToColors: ["#63b3ed"], stops: [0, 100] },
-    },
-    tooltip: { theme: "light", style: { fontSize: "12px" } },
+    chart: { type: "line", height: 400, toolbar: { show: true }, background: "#1f252a" },
+    title: { text: `Price Chart (${interval === "5min" ? "5m" : interval === "hourly" ? "1h" : "1d"})`, align: "left", style: { fontSize: "18px", color: "#f0b90b", fontWeight: "600" } },
+    xaxis: { type: "datetime", labels: { style: { colors: "#a9b6c2", fontSize: "12px" } } },
+    yaxis: { labels: { formatter: (v) => `$${formatNumber(v)}`, style: { colors: "#a9b6c2", fontSize: "12px" } } },
+    stroke: { curve: "smooth", width: 2, colors: ["#f0b90b"] },
+    grid: { borderColor: "#2c3238" },
+    fill: { type: "gradient", gradient: { shade: "dark", gradientToColors: ["#f0b90b"], stops: [0, 100] } },
+    tooltip: { theme: "dark", style: { fontSize: "12px", background: "#2c3238", color: "#fff" } },
   };
 
   const candlestickChartOptions = {
-    chart: { type: "candlestick", height: 400, toolbar: { show: true }, background: "#ffffff" },
-    title: {
-      text: `Candlestick Chart (${interval === "5min" ? "5m" : interval === "hourly" ? "1h" : "1d"})`,
-      align: "left",
-      style: { fontSize: "18px", color: "#1a202c", fontWeight: "600" },
-    },
-    xaxis: {
-      type: "datetime",
-      labels: { style: { colors: "#4a5568", fontSize: "12px" } },
-    },
-    yaxis: {
-      labels: {
-        formatter: (value) => `$${formatNumber(value)}`,
-        style: { colors: "#4a5568", fontSize: "12px" },
-      },
-    },
-    plotOptions: {
-      candlestick: { colors: { upward: "#48bb78", downward: "#f56565" } },
-    },
-    grid: { borderColor: "#e2e8f0" },
-    tooltip: { theme: "light", style: { fontSize: "12px" } },
+    chart: { type: "candlestick", height: 400, toolbar: { show: true }, background: "#1f252a" },
+    title: { text: `Candlestick Chart (${interval === "5min" ? "5m" : interval === "hourly" ? "1h" : "1d"})`, align: "left", style: { fontSize: "18px", color: "#f0b90b", fontWeight: "600" } },
+    xaxis: { type: "datetime", labels: { style: { colors: "#a9b6c2", fontSize: "12px" } } },
+    yaxis: { labels: { formatter: (v) => `$${formatNumber(v)}`, style: { colors: "#a9b6c2", fontSize: "12px" } } },
+    plotOptions: { candlestick: { colors: { upward: "#00c08b", downward: "#f6465d" } } },
+    grid: { borderColor: "#2c3238" },
+    tooltip: { theme: "dark", style: { fontSize: "12px", background: "#2c3238", color: "#fff" } },
   };
 
-  if (loading) return <Spinner animation="border" className="d-block mx-auto mt-5" />;
-  if (error) return <Alert variant="danger" className="mt-5">{error}</Alert>;
-  if (!crypto || !crypto.name || !crypto.symbol || crypto.current_price === undefined) {
-    return <Alert variant="danger" className="mt-5">Данные о криптовалюте недоступны. Попробуйте позже.</Alert>;
-  }
+  if (loading) return <Spinner animation="border" style={{ color: "#f0b90b" }} className="d-block mx-auto mt-5" />;
+  if (error) return <Alert variant="danger" className="mt-5" style={{ background: "#2c3238", color: "#fff", border: "1px solid #f6465d" }}>{error}</Alert>;
+  if (!crypto || !crypto.name || !crypto.symbol || crypto.current_price === undefined) return <Alert variant="danger" className="mt-5" style={{ background: "#2c3238", color: "#fff", border: "1px solid #f6465d" }}>Данные о криптовалюте недоступны. Попробуйте позже.</Alert>;
 
   return (
     <Container
-      className="mt-5"
+      className="mt-4 p-4"
       style={{
-        backgroundColor: "#f7fafc",
+        background: "#12161c",
         minHeight: "100vh",
+        color: "#a9b6c2",
         fontFamily: "'Inter', sans-serif",
-        padding: "2rem",
+        borderRadius: "12px",
+        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.5)",
       }}
     >
-      <h1 className="text-4xl font-bold mb-4 text-gray-900">{crypto.name} ({crypto.symbol.toUpperCase()})</h1>
-      <div className="text-xl mb-4 text-gray-700">
-        1 {crypto.symbol.toUpperCase()} = ${formatNumber(crypto.current_price)} USD{" "}
-        <span className={crypto.price_change_percentage_24h >= 0 ? "text-green-500" : "text-red-500"}>
-          {crypto.price_change_percentage_24h >= 0 ? "+" : ""}
-          {formatNumber(crypto.price_change_percentage_24h)}%
-        </span>
+      <div className="text-center mb-4">
+        <h1 className="text-4xl font-bold" style={{ color: "#f0b90b" }}>
+          {crypto.name} ({crypto.symbol.toUpperCase()}) <span style={{ color: "#00c08b" }}>HOT</span>
+        </h1>
+        <p className="text-lg" style={{ color: "#a9b6c2" }}>
+          1 {crypto.symbol.toUpperCase()} = ${formatNumber(crypto.current_price)} USD{" "}
+          <span className={crypto.price_change_percentage_24h >= 0 ? "text-green-500" : "text-red-500"}>
+            {crypto.price_change_percentage_24h >= 0 ? "+" : ""}{formatNumber(crypto.price_change_percentage_24h)}%
+          </span>
+        </p>
       </div>
-      <ButtonGroup className="mb-4">
+
+      <ButtonGroup className="mb-4 justify-content-center">
         <Button
-          variant={chartType === "line" ? "primary" : "outline-primary"}
+          variant="outline-light"
           onClick={() => setChartType("line")}
           style={{
+            background: chartType === "line" ? "linear-gradient(90deg, #f0b90b, #ffca28)" : "transparent",
+            color: chartType === "line" ? "#fff" : "#a9b6c2",
+            border: "1px solid #2c3238",
             borderRadius: "8px 0 0 8px",
             padding: "10px 20px",
-            backgroundColor: chartType === "line" ? "#3182ce" : "#edf2f7",
-            borderColor: "#3182ce",
-            color: chartType === "line" ? "#fff" : "#3182ce",
+            transition: "all 0.3s ease",
           }}
         >
           Line
         </Button>
         <Button
-          variant={chartType === "candlestick" ? "primary" : "outline-primary"}
+          variant="outline-light"
           onClick={() => setChartType("candlestick")}
           style={{
+            background: chartType === "candlestick" ? "linear-gradient(90deg, #f0b90b, #ffca28)" : "transparent",
+            color: chartType === "candlestick" ? "#fff" : "#a9b6c2",
+            border: "1px solid #2c3238",
             borderRadius: "0 8px 8px 0",
             padding: "10px 20px",
-            backgroundColor: chartType === "candlestick" ? "#3182ce" : "#edf2f7",
-            borderColor: "#3182ce",
-            color: chartType === "candlestick" ? "#fff" : "#3182ce",
+            transition: "all 0.3s ease",
           }}
         >
           Candlestick
         </Button>
       </ButtonGroup>
-      <ButtonGroup className="mb-4">
+
+      <ButtonGroup className="mb-4 justify-content-center">
         <Button
-          variant={interval === "5min" ? "primary" : "outline-primary"}
+          variant="outline-light"
           onClick={() => setInterval("5min")}
           style={{
+            background: interval === "5min" ? "linear-gradient(90deg, #f0b90b, #ffca28)" : "transparent",
+            color: interval === "5min" ? "#fff" : "#a9b6c2",
+            border: "1px solid #2c3238",
             borderRadius: "8px 0 0 8px",
-            padding: "10px 20px",
-            backgroundColor: interval === "5min" ? "#3182ce" : "#edf2f7",
-            borderColor: "#3182ce",
-            color: interval === "5min" ? "#fff" : "#3182ce",
+            padding: "10px 15px",
+            transition: "all 0.3s ease",
           }}
         >
           5m
         </Button>
         <Button
-          variant={interval === "hourly" ? "primary" : "outline-primary"}
+          variant="outline-light"
           onClick={() => setInterval("hourly")}
           style={{
-            padding: "10px 20px",
-            backgroundColor: interval === "hourly" ? "#3182ce" : "#edf2f7",
-            borderColor: "#3182ce",
-            color: interval === "hourly" ? "#fff" : "#3182ce",
+            background: interval === "hourly" ? "linear-gradient(90deg, #f0b90b, #ffca28)" : "transparent",
+            color: interval === "hourly" ? "#fff" : "#a9b6c2",
+            border: "1px solid #2c3238",
+            padding: "10px 15px",
+            transition: "all 0.3s ease",
           }}
         >
           1h
         </Button>
         <Button
-          variant={interval === "daily" ? "primary" : "outline-primary"}
+          variant="outline-light"
           onClick={() => setInterval("daily")}
           style={{
+            background: interval === "daily" ? "linear-gradient(90deg, #f0b90b, #ffca28)" : "transparent",
+            color: interval === "daily" ? "#fff" : "#a9b6c2",
+            border: "1px solid #2c3238",
             borderRadius: "0 8px 8px 0",
-            padding: "10px 20px",
-            backgroundColor: interval === "daily" ? "#3182ce" : "#edf2f7",
-            borderColor: "#3182ce",
-            color: interval === "daily" ? "#fff" : "#3182ce",
+            padding: "10px 15px",
+            transition: "all 0.3s ease",
           }}
         >
           1d
         </Button>
       </ButtonGroup>
+
       {chartData.length > 0 ? (
-        <Card
-          className="mb-4"
-          style={{
-            border: "none",
-            borderRadius: "12px",
-            boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
-            backgroundColor: "#fff",
-          }}
-        >
+        <Card className="mb-4" style={{ background: "#1f252a", border: "none", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)" }}>
           <Card.Body>
-            <Chart
-              options={chartType === "line" ? lineChartOptions : candlestickChartOptions}
-              series={[{ data: chartData }]}
-              type={chartType}
-              height={400}
-            />
+            <Chart options={chartType === "line" ? lineChartOptions : candlestickChartOptions} series={[{ data: chartData }]} type={chartType} height={400} />
           </Card.Body>
         </Card>
       ) : (
-        <Alert variant="warning" className="mb-4">
+        <Alert variant="warning" className="mb-4" style={{ background: "#2c3238", color: "#a9b6c2", border: "1px solid #f0b90b" }}>
           Данные графика недоступны. Попробуйте другой интервал или подождите.
         </Alert>
       )}
+
       <Row className="mt-4">
         <Col md={6}>
-          <Card
-            style={{
-              border: "none",
-              borderRadius: "12px",
-              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
-              backgroundColor: "#fff",
-            }}
-          >
+          <Card style={{ background: "#1f252a", border: "none", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)" }}>
             <Card.Body>
-              <Card.Title className="text-xl font-semibold text-gray-900">Детали</Card.Title>
-              <p className="text-gray-700">
-                <strong>Цена:</strong> ${formatNumber(crypto.current_price)}
-              </p>
-              <p className="text-gray-700">
-                <strong>Капитализация:</strong> ${formatNumber(crypto.market_cap)}
-              </p>
-              <p className="text-gray-700">
-                <strong>Объём (24ч):</strong> ${formatNumber(crypto.total_volume)}
-              </p>
+              <Card.Title className="text-xl font-semibold" style={{ color: "#f0b90b" }}>Детали</Card.Title>
+              <p className="text-gray-300"><strong>Цена:</strong> ${formatNumber(crypto.current_price)}</p>
+              <p className="text-gray-300"><strong>Капитализация:</strong> ${formatNumber(crypto.market_cap)}</p>
+              <p className="text-gray-300"><strong>Объём (24ч):</strong> ${formatNumber(crypto.total_volume)}</p>
             </Card.Body>
           </Card>
+        </Col>
+        <Col md={6}>
+          <Button
+            variant="warning"
+            style={{
+              background: "linear-gradient(90deg, #f0b90b, #ffca28)",
+              border: "none",
+              padding: "12px 24px",
+              fontSize: "16px",
+              fontWeight: "bold",
+              width: "100%",
+              transition: "all 0.3s ease",
+            }}
+            onClick={() => alert("Функция покупки в разработке!")}
+          >
+            Купить {crypto.symbol.toUpperCase()}
+          </Button>
         </Col>
       </Row>
     </Container>
