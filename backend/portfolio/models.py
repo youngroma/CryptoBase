@@ -5,13 +5,14 @@ class PortfolioTransaction(models.Model):
     TRANSACTION_TYPES = (
         ("buy", "Buy"),
         ("sell", "Sell"),
+        ("transfer", "Transfer")
     )
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     coin_id = models.CharField(max_length=100)  # ID with CoinGecko, for example "bitcoin
-    symbol = models.CharField(max_length=10)
     amount = models.DecimalField(max_digits=20, decimal_places=8)  # How much bought/sold
     price_usd = models.DecimalField(max_digits=20, decimal_places=8)  # purchase price
+    fee = models.DecimalField(max_digits=20, decimal_places=8, null=True, blank=True)
     type = models.CharField(max_length=4, choices=TRANSACTION_TYPES)
     timestamp = models.DateTimeField(auto_now_add=True)
 
