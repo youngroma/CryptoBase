@@ -19,3 +19,16 @@ class PortfolioTransaction(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.type} {self.amount} {self.coin_id}"
+
+
+class FavoriteCoin(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    coin_id = models.CharField(max_length=100)
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("user", "coin_id")  # user cannot add the same coin twice
+
+    def __str__(self):
+        return f"{self.user.username} - {self.coin_id}"
+
