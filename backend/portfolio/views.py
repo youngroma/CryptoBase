@@ -93,6 +93,62 @@ class CryptoDetailView(APIView):
 
         return Response(result)
 
+class PortfolioSummaryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        transactions = PortfolioTransaction.objects.filter(user=request.user)
+        summary = {}
+
+        for tx in transactions:
+            if tx.coin_id not in summary:
+                summary[tx.coin_id] = {
+                    "amount": 0,
+                    "total_spent": 0,
+                }
+
+            fee = float(tx.fee) if tx.fee else 0
+            amount = float(tx.amount)
+            price = float(tx.price_usd)
+
+            if tx.type == "buy":
+                summary[tx.coin_id]["amount"] += amount
+                summary[tx.coin_id]["total_spent"] += amount * price + fee  # Commission on purchase
+
+            elif tx.type == "sell":
+                summary[tx.coin_id]["amount"] -= amount
+                summary[tx.coin_id]["total_spent"] -= amount * price - fee  # Commission on sale
+
+            elif tx.type == "transfer_in":
+                summary[tx.coin_id]["amount"] += amount
+
+            elif tx.type == "transfer_out":
+                summary[tx.coin_id]["amount"] -= amount + fee
+
+        coin_ids = ",".join(summary.keys())
+        url = "https://api.coingecko.com/api/v3/simple/price"
+        params = {
+            "ids": coin_ids,
+            "vs_currencies": "usd"
+        }
+        prices = requests.get(url, params=params).json()
+
+        portfolio_data = []
+        for coin_id, data in summary.items():
+            current_price = prices.get(coin_id, {}).get("usd", 0)
+            current_value = current_price * data["amount"]
+            profit_loss = current_value - data["total_spent"]
+
+            portfolio_data.append({
+                "coin_id": coin_id,
+                "amount": round(data["amount"], 8),
+                "total_spent": round(data["total_spent"], 2),
+                "current_price": round(current_price, 2),
+                "current_value": round(current_value, 2),
+                "profit_loss": round(profit_loss, 2)
+            })
+
+        return Response(portfolio_data)
 
 class PortfolioTransactionView(APIView):
     permission_classes = [IsAuthenticated]
