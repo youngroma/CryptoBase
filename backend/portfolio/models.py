@@ -5,7 +5,8 @@ class PortfolioTransaction(models.Model):
     TRANSACTION_TYPES = (
         ("buy", "Buy"),
         ("sell", "Sell"),
-        ("transfer", "Transfer")
+        ("transfer_in", "Transfer In"),
+        ("transfer_out", "Transfer Out")
     )
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
@@ -13,7 +14,7 @@ class PortfolioTransaction(models.Model):
     amount = models.DecimalField(max_digits=20, decimal_places=8)  # How much bought/sold
     price_usd = models.DecimalField(max_digits=20, decimal_places=8)  # purchase price
     fee = models.DecimalField(max_digits=20, decimal_places=8, null=True, blank=True)
-    type = models.CharField(max_length=4, choices=TRANSACTION_TYPES)
+    type = models.CharField(max_length=13, choices=TRANSACTION_TYPES)
     timestamp = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
