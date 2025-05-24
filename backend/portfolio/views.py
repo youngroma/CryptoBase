@@ -1,12 +1,14 @@
 import logging
 import requests
 from django.core.cache import cache
+from django.db import IntegrityError
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
-from .models import PortfolioTransaction
-from .serializers import PortfolioTransactionSerializer
+from .models import PortfolioTransaction, FavoriteCoin
+from .serializers import PortfolioTransactionSerializer, FavoriteCoinSerializer
+
 
 def get_cached_data(cache_key, url, params=None):
     cached_data = cache.get(cache_key)
@@ -159,3 +161,34 @@ class PortfolioTransactionView(APIView):
             serializer.save(user=request.user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class FavoriteCoinView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        favorites = FavoriteCoin.objects.filter(user=request.user)
+        serializer = FavoriteCoinSerializer(favorites, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        coin_id = request.data.get('coin_id')
+        if not coin_id:
+            return Response({'error': 'coin_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            favorite = FavoriteCoin.objects.create(user=request.user, coin_id=coin_id)
+        except IntegrityError:
+            return Response({'error': 'Coin already in favorites'}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = FavoriteCoinSerializer(favorite)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def delete(self, request):
+        coin_id = request.data.get("coin_id")
+        if coin_id:
+            deleted, _ = FavoriteCoin.objects.filter(user=request.user, coin_id=coin_id).delete()
+            if deleted:
+                return Response({"message": "Deleted from favorites"}, status=status.HTTP_204_NO_CONTENT)
+            return Response({"error": "Not found"}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"error": "coin_id required"}, status=status.HTTP_400_BAD_REQUEST)
