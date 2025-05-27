@@ -115,15 +115,12 @@ class PortfolioSummaryView(APIView):
 
             if tx.type == "buy":
                 summary[tx.coin_id]["amount"] += amount
-                summary[tx.coin_id]["total_spent"] += amount * price + fee  # Commission on purchase
-
+                summary[tx.coin_id]["total_spent"] += amount * price + fee
             elif tx.type == "sell":
                 summary[tx.coin_id]["amount"] -= amount
-                summary[tx.coin_id]["total_spent"] -= amount * price - fee  # Commission on sale
-
+                summary[tx.coin_id]["total_spent"] -= amount * price - fee
             elif tx.type == "transfer_in":
                 summary[tx.coin_id]["amount"] += amount
-
             elif tx.type == "transfer_out":
                 summary[tx.coin_id]["amount"] -= amount + fee
 
@@ -133,7 +130,9 @@ class PortfolioSummaryView(APIView):
             "ids": coin_ids,
             "vs_currencies": "usd"
         }
-        prices = requests.get(url, params=params).json()
+
+        cache_key = f"coingecko_prices_{coin_ids.replace(',', '_')}"
+        prices = get_cached_data(cache_key, url, params=params)
 
         portfolio_data = []
         for coin_id, data in summary.items():
