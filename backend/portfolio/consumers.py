@@ -13,6 +13,7 @@ class CryptoConsumer(AsyncWebsocketConsumer):
         self.slug = self.scope['url_route']['kwargs']['slug']
         self.interval_type = "daily"  # default value
         self.running = True
+        self.chart_type = "line"
 
         await self.accept()
 
@@ -28,10 +29,12 @@ class CryptoConsumer(AsyncWebsocketConsumer):
     async def receive(self, text_data):
         data = json.loads(text_data)
         interval_type = data.get("interval_type")
+        chart_type = data.get("chart_type", "line")
 
-        if interval_type in VALID_INTERVALS:
+        if interval_type in VALID_INTERVALS and chart_type in ["line", "candlestick"]:
             self.interval_type = interval_type
-            # Stop old problem
+            self.chart_type = chart_type
+
             if self.chart_task:
                 self.chart_task.cancel()
                 try:
@@ -39,21 +42,25 @@ class CryptoConsumer(AsyncWebsocketConsumer):
                 except asyncio.CancelledError:
                     pass
 
-            # Run a new task with a new interval
             self.chart_task = asyncio.create_task(self.send_chart_data_loop())
 
-            await self.send(text_data=json.dumps({"message": f"Interval changed to {interval_type}"}))
+            await self.send(text_data=json.dumps({
+                "message": f"Interval changed to {interval_type}, chart type changed to {chart_type}"
+            }))
         else:
-            await self.send(text_data=json.dumps({"error": "Invalid interval type."}))
+            await self.send(text_data=json.dumps({"error": "Invalid interval type or chart type."}))
 
     async def send_chart_data_loop(self):
         while self.running:
             try:
                 # Get data for the graph
-                chart_data = await getChartDataAsync(self.slug, self.interval_type)  # Call getChartData from services
+                chart_data = await getChartDataAsync(self.slug, self.interval_type, self.chart_type)  # Call getChartData from services
 
                 # Send data via WebSocket
                 await self.send(text_data=json.dumps({
+                    "slug": self.slug,
+                    "interval_type": self.interval_type,
+                    "chart_type": self.chart_type,
                     "chart_data": chart_data
                 }))
 

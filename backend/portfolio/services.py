@@ -5,8 +5,8 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 
-async def getChartDataAsync(slug, interval_type="daily"):
-    cache_key = f"chart_data_{slug}_{interval_type}"
+async def getChartDataAsync(slug, interval_type="daily", chart_type="line"):
+    cache_key = f"chart_data_{slug}_{interval_type}_{chart_type}"
     cached_data = cache.get(cache_key)
 
     if cached_data:
@@ -23,11 +23,18 @@ async def getChartDataAsync(slug, interval_type="daily"):
 
     days = interval_days_map.get(interval_type, 30)
 
-    url = f"https://api.coingecko.com/api/v3/coins/{slug}/market_chart"
-    params = {
-        "vs_currency": "usd",
-        "days": days
-    }
+    if chart_type == "candlestick":
+        url = f"https://api.coingecko.com/api/v3/coins/{slug}/ohlc"
+        params = {
+            "vs_currency": "usd",
+            "days": days
+        }
+    else:
+        url = f"https://api.coingecko.com/api/v3/coins/{slug}/market_chart"
+        params = {
+            "vs_currency": "usd",
+            "days": days
+        }
 
     try:
         async with httpx.AsyncClient() as client:
@@ -35,21 +42,31 @@ async def getChartDataAsync(slug, interval_type="daily"):
 
         if response.status_code == 200:
             data = response.json()
-            prices = data.get("prices", [])
-            formatted_data = [{"timestamp": ts, "price": price} for ts, price in prices]
 
-            if interval_type == "5min":
-                timeout = 5 * 60  # 5 minutes for 5-minute chart
-            elif interval_type == "hourly":
-                timeout = 60 * 60  # 1 hour for the time schedule
-            elif interval_type == "daily":
-                timeout = 24 * 60 * 60  # 1 day for daily schedule
+            if chart_type == "candlestick":
+                formatted_data = [
+                    {
+                        "timestamp": item[0],
+                        "open": item[1],
+                        "high": item[2],
+                        "low": item[3],
+                        "close": item[4],
+                    }
+                    for item in data
+                ]
             else:
-                timeout = 60 * 60  # Default 1 hour
+                prices = data.get("prices", [])
+                formatted_data = [{"timestamp": ts, "price": price} for ts, price in prices]
+
+            # Set cache timeout
+            timeout = {
+                "5min": 5 * 60,     # 5 minutes for 5-minute chart
+                "hourly": 60 * 60,       # 1 hour for the time schedule
+                "daily": 24 * 60 * 60       # 1 day for daily schedule
+            }.get(interval_type, 60 * 60)   # Default 1 hour
 
             print(f"Caching data for {cache_key}: {formatted_data}")
             cache.set(cache_key, json.dumps(formatted_data), timeout)
-
             logging.info("Fetched new data from API and cached it.")
             return formatted_data
         else:
