@@ -1,18 +1,126 @@
 import React, { useState, useEffect } from "react";
-import { Container, Row, Col, Spinner, Alert, Card, Button, ButtonGroup } from "react-bootstrap";
+import { Container, Row, Col, Spinner, Alert, Card, Button, ButtonGroup, Modal, Form } from "react-bootstrap";
 import { useParams } from "react-router-dom";
 import Chart from "react-apexcharts";
 
-// Mock data for testing (can be removed when WebSocket works)
-const mockChartData = [
-  { timestamp: new Date().getTime() - 86400000, price: 100000 },
-  { timestamp: new Date().getTime() - 72000000, price: 101000 },
-  { timestamp: new Date().getTime() - 36000000, price: 102000 },
-  { timestamp: new Date().getTime(), price: 102267 },
-].map((item) => ({
-  x: new Date(item.timestamp),
-  y: item.price,
-}));
+const BuyModal = ({ show, onHide, crypto, onTransaction }) => {
+  const [amount, setAmount] = useState("");
+  const [priceUsd, setPriceUsd] = useState(crypto?.current_price || "");
+  const [fee, setFee] = useState("");
+  const [error, setError] = useState("");
+
+  const handleSubmit = async () => {
+    if (!amount || amount <= 0) {
+      setError("Please enter a valid amount.");
+      return;
+    }
+    if (!priceUsd || priceUsd <= 0) {
+      setError("Please enter a valid price.");
+      return;
+    }
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setError("Please log in to your account.");
+      return;
+    }
+
+    try {
+      const response = await fetch("http://localhost:8000/portfolio/transactions/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          coin_id: crypto.name.toLowerCase(),
+          amount,
+          price_usd: priceUsd,
+          fee: fee || null,
+          type: "buy",
+        }),
+      });
+
+      if (response.ok) {
+        onTransaction();
+        onHide();
+      } else {
+        const data = await response.json();
+        setError(data.error || "Error during purchase.");
+      }
+    } catch (err) {
+      setError("Network error: " + err.message);
+    }
+  };
+
+  return (
+    <Modal show={show} onHide={onHide} centered>
+      <Modal.Header closeButton style={{ background: "#1f252a", borderBottom: "1px solid #2c3238" }}>
+        <Modal.Title style={{ color: "#f0b90b" }}>Buy {crypto?.name}</Modal.Title>
+      </Modal.Header>
+      <Modal.Body style={{ background: "#1f252a", color: "#a9b6c2" }}>
+        <Form>
+          <Form.Group className="mb-3">
+            <Form.Label>Amount</Form.Label>
+            <Form.Control
+              type="number"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="Enter amount"
+              style={{ background: "#2c3238", color: "#ffffff", border: "1px solid #3a4149" }}
+              className="custom-input"
+            />
+          </Form.Group>
+          <Form.Group className="mb-3">
+            <Form.Label>Price per Unit (USD)</Form.Label>
+            <Form.Control
+              type="number"
+              value={priceUsd}
+              onChange={(e) => setPriceUsd(e.target.value)}
+              placeholder="Enter price"
+              style={{ background: "#2c3238", color: "#ffffff", border: "1px solid #3a4149" }}
+              className="custom-input"
+            />
+          </Form.Group>
+          <Form.Group className="mb-3">
+            <Form.Label>Fee (USD, optional)</Form.Label>
+            <Form.Control
+              type="number"
+              value={fee}
+              onChange={(e) => setFee(e.target.value)}
+              placeholder="Enter fee"
+              style={{ background: "#2c3238", color: "#ffffff", border: "1px solid #3a4149" }}
+              className="custom-input"
+            />
+          </Form.Group>
+          {error && <Alert variant="danger">{error}</Alert>}
+          <Button
+            variant="warning"
+            onClick={handleSubmit}
+            style={{ background: "#f0b90b", border: "none", width: "100%" }}
+          >
+            Buy
+          </Button>
+        </Form>
+      </Modal.Body>
+      <style jsx>{`
+        .custom-input::placeholder {
+          color: #a9b6c2 !important;
+          opacity: 1;
+        }
+        .custom-input::-webkit-input-placeholder {
+          color: #a9b6c2 !important;
+        }
+        .custom-input:-ms-input-placeholder {
+          color: #a9b6c2 !important;
+        }
+        .custom-input::-ms-input-placeholder {
+          color: #a9b6c2 !important;
+        }
+      `}</style>
+    </Modal>
+  );
+};
 
 const CryptoDetail = () => {
   const { id } = useParams();
@@ -22,69 +130,131 @@ const CryptoDetail = () => {
   const [chartType, setChartType] = useState("line");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [showBuyModal, setShowBuyModal] = useState(false);
+  const token = localStorage.getItem("token");
 
-  // Fetch crypto data
+  // Load cryptocurrency data
   useEffect(() => {
     const fetchCrypto = async () => {
       try {
         const response = await fetch(`http://localhost:8000/details/${id}/`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token") || ""}` },
+          headers: { Authorization: `Bearer ${token || ""}` },
         });
         if (response.ok) {
           const data = await response.json();
-          console.log("CryptoDetail API Response:", data);
           setCrypto(data);
         } else {
           const text = await response.text();
-          console.log("Server Response Text:", text);
-          let errorMessage = `Не удалось загрузить данные: ${response.statusText} (Status: ${response.status})`;
-          if (text.startsWith("<!DOCTYPE html")) errorMessage = "Ошибка на сервере. Пожалуйста, попробуйте позже.";
+          let errorMessage = `Failed to load data: ${response.statusText} (Status: ${response.status})`;
+          if (text.startsWith("<!DOCTYPE html")) errorMessage = "Server error. Please try again later.";
           else try { const errorData = JSON.parse(text); errorMessage = errorData.error || errorMessage; } catch {}
           setError(errorMessage);
         }
       } catch (err) {
-        console.error("Fetch Error:", err);
-        setError(`Ошибка сети: ${err.message}. Проверьте подключение.`);
+        setError(`Network error: ${err.message}. Check your connection.`);
       } finally {
         setLoading(false);
       }
     };
-    fetchCrypto();
-  }, [id]);
 
-  // WebSocket setup
+    // Check if the coin is in favorites
+    const fetchFavoriteStatus = async () => {
+      if (token) {
+        try {
+          const response = await fetch("http://localhost:8000/favorites/", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (response.ok) {
+            const data = await response.json();
+            setIsFavorite(data.some(fav => fav.coin_id === id));
+          }
+        } catch (err) {
+          setError("Error loading favorite status: " + err.message);
+        }
+      }
+    };
+
+    fetchCrypto();
+    fetchFavoriteStatus();
+  }, [id, token]);
+
+  // WebSocket for chart
   useEffect(() => {
     const ws = new WebSocket(`ws://localhost:8000/ws/crypto/${id}/`);
     ws.onopen = () => {
-      console.log("WebSocket connected");
-      ws.send(JSON.stringify({ interval_type: interval }));
+      ws.send(JSON.stringify({ interval_type: interval, chart_type: chartType }));
     };
+
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        console.log("WebSocket data:", data);
         if (data.chart_data && Array.isArray(data.chart_data)) {
           const formattedData = data.chart_data
-            .map((item) => (item?.timestamp && item?.price != null ? {
-              x: new Date(item.timestamp),
-              y: chartType === "line" ? item.price : [item.price, item.price, item.price, item.price],
-            } : null))
+            .map((item) => {
+              if (item?.timestamp && (chartType === "candlestick" ? (item?.open != null && item?.high != null && item?.low != null && item?.close != null) : item?.price != null)) {
+                if (chartType === "candlestick") {
+                  return {
+                    x: new Date(item.timestamp),
+                    y: [item.open, item.high, item.low, item.close],
+                  };
+                } else {
+                  return {
+                    x: new Date(item.timestamp),
+                    y: item.price,
+                  };
+                }
+              }
+              return null;
+            })
             .filter((item) => item !== null);
           setChartData(formattedData);
         }
-        if (typeof data.price === "number") setCrypto((prev) => prev ? { ...prev, current_price: data.price } : prev);
-        if (data.error) setError(`Ошибка WebSocket: ${data.error}`);
+
+        if (typeof data.price === "number") {
+          setCrypto((prev) => prev ? { ...prev, current_price: data.price } : prev);
+        }
+
+        if (data.error) setError(`WebSocket error: ${data.error}`);
       } catch (err) {
-        console.error("WebSocket message error:", err);
-        setError("Ошибка обработки данных WebSocket.");
+        setError("Error processing WebSocket data.");
       }
     };
+
     ws.onclose = () => console.log("WebSocket disconnected");
     ws.onerror = (error) => console.error("WebSocket error:", error);
     return () => ws.close();
   }, [id, interval, chartType]);
 
   const formatNumber = (num) => (num == null || isNaN(num) ? "N/A" : num >= 1e9 ? (num / 1e9).toFixed(1) + "B" : num >= 1e6 ? (num / 1e6).toFixed(1) + "M" : num >= 1e3 ? (num / 1e3).toFixed(1) + "K" : num.toFixed(2));
+
+  const toggleFavorite = async () => {
+    if (!token) {
+      setError("Please log in to add to favorites.");
+      return;
+    }
+
+    const method = isFavorite ? "DELETE" : "POST";
+    try {
+      const response = await fetch("http://localhost:8000/favorites/", {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ coin_id: id }),
+      });
+
+      if (response.ok) {
+        setIsFavorite(!isFavorite);
+      } else {
+        const data = await response.json();
+        setError(data.error || "Error updating favorites.");
+      }
+    } catch (err) {
+      setError("Network error: " + err.message);
+    }
+  };
 
   const lineChartOptions = {
     chart: { type: "line", height: 400, toolbar: { show: true }, background: "#1f252a" },
@@ -109,7 +279,7 @@ const CryptoDetail = () => {
 
   if (loading) return <Spinner animation="border" style={{ color: "#f0b90b" }} className="d-block mx-auto mt-5" />;
   if (error) return <Alert variant="danger" className="mt-5" style={{ background: "#2c3238", color: "#fff", border: "1px solid #f6465d" }}>{error}</Alert>;
-  if (!crypto || !crypto.name || !crypto.symbol || crypto.current_price === undefined) return <Alert variant="danger" className="mt-5" style={{ background: "#2c3238", color: "#fff", border: "1px solid #f6465d" }}>Данные о криптовалюте недоступны. Попробуйте позже.</Alert>;
+  if (!crypto || !crypto.name || !crypto.symbol || crypto.current_price === undefined) return <Alert variant="danger" className="mt-5" style={{ background: "#2c3238", color: "#fff", border: "1px solid #f6465d" }}>Cryptocurrency data unavailable. Please try again later.</Alert>;
 
   return (
     <Container
@@ -133,9 +303,22 @@ const CryptoDetail = () => {
             {crypto.price_change_percentage_24h >= 0 ? "+" : ""}{formatNumber(crypto.price_change_percentage_24h)}%
           </span>
         </p>
+        <Button
+          variant={isFavorite ? "danger" : "outline-warning"}
+          onClick={toggleFavorite}
+          style={{
+            marginTop: "10px",
+            borderRadius: "8px",
+            padding: "8px 16px",
+            fontSize: "1rem",
+            transition: "all 0.3s ease",
+          }}
+        >
+          {isFavorite ? "Remove from Favorites" : "Add to Favorites"}
+        </Button>
       </div>
 
-      <ButtonGroup className="mb-4 justify-content-center">
+      <ButtonGroup className="mb-4 d-flex justify-content-center">
         <Button
           variant="outline-light"
           onClick={() => setChartType("line")}
@@ -166,7 +349,7 @@ const CryptoDetail = () => {
         </Button>
       </ButtonGroup>
 
-      <ButtonGroup className="mb-4 justify-content-center">
+      <ButtonGroup className="mb-4 d-flex justify-content-center">
         <Button
           variant="outline-light"
           onClick={() => setInterval("5min")}
@@ -218,7 +401,7 @@ const CryptoDetail = () => {
         </Card>
       ) : (
         <Alert variant="warning" className="mb-4" style={{ background: "#2c3238", color: "#a9b6c2", border: "1px solid #f0b90b" }}>
-          Данные графика недоступны. Попробуйте другой интервал или подождите.
+          Chart data unavailable. Try a different interval or wait.
         </Alert>
       )}
 
@@ -226,16 +409,17 @@ const CryptoDetail = () => {
         <Col md={6}>
           <Card style={{ background: "#1f252a", border: "none", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)" }}>
             <Card.Body>
-              <Card.Title className="text-xl font-semibold" style={{ color: "#f0b90b" }}>Детали</Card.Title>
-              <p className="text-gray-300"><strong>Цена:</strong> ${formatNumber(crypto.current_price)}</p>
-              <p className="text-gray-300"><strong>Капитализация:</strong> ${formatNumber(crypto.market_cap)}</p>
-              <p className="text-gray-300"><strong>Объём (24ч):</strong> ${formatNumber(crypto.total_volume)}</p>
+              <Card.Title className="text-xl font-semibold" style={{ color: "#f0b90b" }}>Details</Card.Title>
+              <p className="text-gray-300"><strong>Price:</strong> ${formatNumber(crypto.current_price)}</p>
+              <p className="text-gray-300"><strong>Market Cap:</strong> ${formatNumber(crypto.market_cap)}</p>
+              <p className="text-gray-300"><strong>Volume (24h):</strong> ${formatNumber(crypto.total_volume)}</p>
             </Card.Body>
           </Card>
         </Col>
         <Col md={6}>
           <Button
             variant="warning"
+            onClick={() => setShowBuyModal(true)}
             style={{
               background: "linear-gradient(90deg, #f0b90b, #ffca28)",
               border: "none",
@@ -245,12 +429,18 @@ const CryptoDetail = () => {
               width: "100%",
               transition: "all 0.3s ease",
             }}
-            onClick={() => alert("Функция покупки в разработке!")}
           >
-            Купить {crypto.symbol.toUpperCase()}
+            Buy {crypto.symbol.toUpperCase()}
           </Button>
         </Col>
       </Row>
+
+      <BuyModal
+        show={showBuyModal}
+        onHide={() => setShowBuyModal(false)}
+        crypto={crypto}
+        onTransaction={() => alert("Purchase successful! Check your portfolio.")}
+      />
     </Container>
   );
 };

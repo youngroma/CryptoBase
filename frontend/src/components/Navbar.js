@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Container, Navbar, Nav, Button } from "react-bootstrap";
+import { Link } from "react-router-dom";
 import LoginModal from "./LoginModal";
 import RegisterModal from "./RegisterModal";
 
@@ -21,6 +22,11 @@ const NavBar = () => {
             CryptoBase
           </Navbar.Brand>
           <Nav className="ms-auto">
+            {isAuthenticated && (
+              <Nav.Link as={Link} to="/portfolio" style={{ color: "#a9b6c2", marginRight: "10px" }}>
+                Portfolio
+              </Nav.Link>
+            )}
             {!isAuthenticated ? (
               <>
                 <Button
