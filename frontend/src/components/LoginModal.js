@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Modal, Button, Form } from "react-bootstrap";
 
-// Кастомные стили
+// Custom styles
 const customStyles = `
   .custom-backdrop {
     background-color: rgba(0, 0, 0, 0.3) !important;
@@ -16,7 +16,7 @@ const customStyles = `
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
     border: none;
     max-width: 400px !important;
-    max-height: 450px !important; /* Уменьшаем высоту модального окна */
+    max-height: 450px !important;
     height: auto !important;
     margin: 0 auto;
     overflow: hidden !important;
@@ -119,7 +119,7 @@ const LoginModal = ({ show, onHide }) => {
         onHide();
         window.location.reload();
       } else {
-        alert("Ошибка: " + data.error);
+        alert("Error: " + data.error);
       }
     }
   };

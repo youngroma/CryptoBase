@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Modal, Button, Form } from "react-bootstrap";
 
-// Кастомные стили
+// Custom styles
 const customStyles = `
   .custom-backdrop {
     background-color: rgba(0, 0, 0, 0.3) !important;
