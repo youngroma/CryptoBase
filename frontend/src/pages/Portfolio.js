@@ -15,7 +15,7 @@ const TransactionModal = ({ show, onHide, coin, onTransaction, maxAmount, portfo
   const selectedCoin = portfolio.find(item => item.coin_id === selectedCoinId) || coin;
   const currentMaxAmount = isPortfolioModal ? (portfolio.find(item => item.coin_id === selectedCoinId)?.amount || 0) : maxAmount;
 
-  // Fetch top 20 cryptocurrencies for Buy/Transfer In
+
   useEffect(() => {
     const fetchTopCoins = async () => {
       try {
@@ -39,7 +39,7 @@ const TransactionModal = ({ show, onHide, coin, onTransaction, maxAmount, portfo
     }
   }, [isPortfolioModal]);
 
-  // Filter coins based on transaction type
+
   const availableCoins = transactionType === "buy" || transactionType === "transfer_in"
     ? allCoins
     : portfolio.filter(item => item.amount > 0);

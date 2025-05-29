@@ -134,7 +134,7 @@ const CryptoDetail = () => {
   const [showBuyModal, setShowBuyModal] = useState(false);
   const token = localStorage.getItem("token");
 
-  // Load cryptocurrency data
+
   useEffect(() => {
     const fetchCrypto = async () => {
       try {
@@ -158,7 +158,7 @@ const CryptoDetail = () => {
       }
     };
 
-    // Check if the coin is in favorites
+
     const fetchFavoriteStatus = async () => {
       if (token) {
         try {
@@ -179,7 +179,7 @@ const CryptoDetail = () => {
     fetchFavoriteStatus();
   }, [id, token]);
 
-  // WebSocket for chart
+
   useEffect(() => {
     const ws = new WebSocket(`ws://localhost:8000/ws/crypto/${id}/`);
     ws.onopen = () => {
