@@ -15,33 +15,28 @@ const TransactionModal = ({ show, onHide, coin, onTransaction, maxAmount, portfo
   const selectedCoin = portfolio.find(item => item.coin_id === selectedCoinId) || coin;
   const currentMaxAmount = isPortfolioModal ? (portfolio.find(item => item.coin_id === selectedCoinId)?.amount || 0) : maxAmount;
 
-  // Fetch top 20 cryptocurrencies via HTTP
+  // Fetch top 20 cryptocurrencies for Buy/Transfer In
   useEffect(() => {
-    if (!isPortfolioModal) return;
-
     const fetchTopCoins = async () => {
       try {
-        const response = await fetch("http://localhost:8000/", {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token") || ""}` },
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setAllCoins(data.map(coin => ({
-            coin_id: coin.symbol.toLowerCase(), // Адаптируем под структуру вашего API
-            name: coin.name,
-            image: coin.image,
-            current_price: coin.current_price,
-          })));
-        } else {
-          const text = await response.text();
-          setError(`Failed to load cryptocurrency list: ${text}`);
-        }
+        const response = await fetch(
+          "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=20&page=1&sparkline=false"
+        );
+        const data = await response.json();
+        setAllCoins(data.map(coin => ({
+          coin_id: coin.id,
+          name: coin.name,
+          image: coin.image,
+          current_price: coin.current_price,
+        })));
       } catch (err) {
-        setError("Network error: " + err.message);
+        setError("Error loading cryptocurrency list: " + err.message);
       }
     };
 
-    fetchTopCoins();
+    if (isPortfolioModal) {
+      fetchTopCoins();
+    }
   }, [isPortfolioModal]);
 
   // Filter coins based on transaction type
@@ -110,6 +105,7 @@ const TransactionModal = ({ show, onHide, coin, onTransaction, maxAmount, portfo
   };
 
   const maxDateTime = new Date().toISOString().slice(0, 16);
+
   const selectedCoinDisplay = availableCoins.find(item => item.coin_id === selectedCoinId);
 
   return (
@@ -311,14 +307,11 @@ const Portfolio = () => {
           const coinIds = data.map(item => item.coin_id).join(",");
           if (coinIds) {
             const coinDataResponse = await fetch(
-              `http://localhost:8000/?ids=${coinIds}`, // Используем CryptoListView для получения данных по ID
-              {
-                headers: { Authorization: `Bearer ${token}` },
-              }
+              `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${coinIds}&order=market_cap_desc&per_page=100&page=1&sparkline=false`
             );
             const coinData = await coinDataResponse.json();
             const updatedPortfolio = data.map(item => {
-              const coinInfo = coinData.find(coin => coin.symbol.toLowerCase() === item.coin_id);
+              const coinInfo = coinData.find(coin => coin.id === item.coin_id);
               return {
                 ...item,
                 image: coinInfo?.image || "https://via.placeholder.com/30",
@@ -344,7 +337,16 @@ const Portfolio = () => {
         });
         if (response.ok) {
           const data = await response.json();
-          setFavorites(data);
+          const coinIds = data.map(fav => fav.coin_id).join(",");
+          if (coinIds) {
+            const pricesResponse = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinIds}&vs_currencies=usd&include_24hr_change=true`);
+            const pricesData = await pricesResponse.json();
+            setFavorites(data.map(fav => ({
+              coin_id: fav.coin_id,
+              current_price: pricesData[fav.coin_id]?.usd || "N/A",
+              price_change_24h: pricesData[fav.coin_id]?.usd_24h_change || "N/A",
+            })));
+          }
         }
       } catch (err) {
         setError("Error loading favorite coins: " + err.message);
@@ -391,7 +393,6 @@ const Portfolio = () => {
     setTransactions([]);
     setFavorites([]);
     setError(null);
-
     const fetchPortfolio = async () => {
       try {
         const response = await fetch("http://localhost:8000/portfolio/summary/", {
@@ -402,14 +403,11 @@ const Portfolio = () => {
           const coinIds = data.map(item => item.coin_id).join(",");
           if (coinIds) {
             const coinDataResponse = await fetch(
-              `http://localhost:8000/?ids=${coinIds}`,
-              {
-                headers: { Authorization: `Bearer ${token}` },
-              }
+              `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${coinIds}&order=market_cap_desc&per_page=100&page=1&sparkline=false`
             );
             const coinData = await coinDataResponse.json();
             const updatedPortfolio = data.map(item => {
-              const coinInfo = coinData.find(coin => coin.symbol.toLowerCase() === item.coin_id);
+              const coinInfo = coinData.find(coin => coin.id === item.coin_id);
               return {
                 ...item,
                 image: coinInfo?.image || "https://via.placeholder.com/30",
@@ -446,7 +444,16 @@ const Portfolio = () => {
         });
         if (response.ok) {
           const data = await response.json();
-          setFavorites(data);
+          const coinIds = data.map(fav => fav.coin_id).join(",");
+          if (coinIds) {
+            const pricesResponse = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinIds}&vs_currencies=usd&include_24hr_change=true`);
+            const pricesData = await pricesResponse.json();
+            setFavorites(data.map(fav => ({
+              coin_id: fav.coin_id,
+              current_price: pricesData[fav.coin_id]?.usd || "N/A",
+              price_change_24h: pricesData[fav.coin_id]?.usd_24h_change || "N/A",
+            })));
+          }
         }
       } catch (err) {
         setError("Error loading favorite coins: " + err.message);
@@ -489,12 +496,8 @@ const Portfolio = () => {
           New Transaction
         </Button>
       </div>
-      <h1 className="text-center mb-4" style={{ color: "#f0b90b", fontSize: "2.5rem", fontWeight: "bold" }}>
-        Portfolio
-      </h1>
-      <p className="text-center mb-5" style={{ color: "#a9b6c2", fontSize: "1.2rem" }}>
-        Updated: May 28, 2025, 01:23 PM CEST
-      </p>
+
+    
 
       <h2 className="mb-3" style={{ color: "#f0b90b", fontSize: "1.8rem" }}>Your Assets</h2>
       {portfolio.length > 0 ? (

@@ -96,12 +96,7 @@ const Home = () => {
 
   return (
     <Container fluid className="mt-0 p-4" style={{ background: "#12161c", minHeight: "100vh", color: "#ffffff", fontFamily: "'Inter', sans-serif" }}>
-      <h1 className="text-center mb-4" style={{ color: "#f0b90b", fontSize: "2.5rem", fontWeight: "bold" }}>
-        CryptoBase
-      </h1>
-      <p className="text-center mb-5" style={{ color: "#a9b6c2", fontSize: "1.2rem" }}>
-        Updated: 12:28 PM CEST, May 28, 2025
-      </p>
+
 
       <Table responsive className="tile-table" style={{ background: "#12161c", borderRadius: "12px", overflow: "hidden" }}>
         <thead>
