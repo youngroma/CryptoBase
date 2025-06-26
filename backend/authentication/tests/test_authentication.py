@@ -31,9 +31,8 @@ def user(db):
         password='secret123'
     )
 
-class TestRegisterView:
-    @staticmethod
-    def register_user(client, url, **kwargs):
+class AuthTestMixin:
+    def register_user(self, client, url, **kwargs):
         default_data = {
             'username': 'testuser',
             'email': 'test@example.com',
@@ -42,6 +41,13 @@ class TestRegisterView:
         default_data.update(kwargs)
         return client.post(url, default_data)
 
+    def login_user(self, client, email, password, login_url):
+        return client.post(login_url, {
+            'email': email,
+            'password': password
+        }, format='json')
+
+class TestRegisterView(AuthTestMixin):
     @pytest.mark.django_db
     def test_register_user_success(self, api_client, register_url):
         response = self.register_user(api_client, register_url, username='new_user')
@@ -63,15 +69,7 @@ class TestRegisterView:
         assert 'username' in response.data
 
 
-class TestLoginView:
-    
-    @staticmethod
-    def login_user(client, email, password, login_url):
-        return client.post(login_url, {
-            'email': email,
-            'password': password
-        }, format='json')
-
+class TestLoginView(AuthTestMixin):
     def test_login_user_success(self, api_client, user, login_url):
         response = self.login_user(api_client, 'tester@example.com', 'secret123', login_url)
 
