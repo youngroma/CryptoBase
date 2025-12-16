@@ -154,6 +154,11 @@ class PortfolioSummaryView(APIView):
 class PortfolioTransactionView(APIView):
     permission_classes = [IsAuthenticated]
 
+    def get(self, request):
+        transactions = PortfolioTransaction.objects.filter(user=request.user).order_by("-timestamp")
+        serializer = PortfolioTransactionSerializer(transactions, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
     def post(self, request):
         serializer = PortfolioTransactionSerializer(data=request.data)
         if serializer.is_valid():
